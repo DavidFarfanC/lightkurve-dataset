@@ -2,8 +2,7 @@
   "version": 2,
   "functions": {
     "api/index.py": {
-      "runtime": "python3.11",
-      "buildCommand": "pip install -r requirements.txt",
+      "runtime": "vercel-python@3.9",
       "maxDuration": 60
     }
   },
