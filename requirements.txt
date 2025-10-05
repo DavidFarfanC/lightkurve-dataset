@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+lightgbm
+lightkurve
+astropy
+numpy
+pandas
+scikit-learn
+pyyaml
+pyarrow
+python-multipart

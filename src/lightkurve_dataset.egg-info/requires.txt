@@ -1,0 +1,15 @@
+numpy
+pandas
+astropy
+lightkurve
+scikit-learn
+lightgbm
+
+[cnn]
+torch
+torchvision
+
+[ui]
+fastapi
+uvicorn
+streamlit

@@ -1,0 +1,14 @@
+# Weights and thresholds for physical vetting adjustments applied post-ensemble.
+# These values can be tuned; defaults match the heuristic used en ensemble_blend.py.
+
+v: 0.3
+v_threshold: 0.6
+oe: 0.2
+oe_threshold: 300.0
+sec: 0.2
+sec_threshold: 200.0
+dur: 0.15
+dur_ratio: 4.0
+rho: 0.15
+rho_min: 0.1
+rho_max: 5.0

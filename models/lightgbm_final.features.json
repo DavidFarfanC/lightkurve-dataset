@@ -1,0 +1,15 @@
+[
+  "depth_ppm",
+  "snr_in_transit",
+  "odd_depth_ppm",
+  "even_depth_ppm",
+  "odd_even_diff_ppm",
+  "secondary_depth_ppm",
+  "vshape_ratio",
+  "duration_days",
+  "period_days",
+  "epoch_bjd",
+  "rho_star_cgs",
+  "bls_sde",
+  "bls_power"
+]

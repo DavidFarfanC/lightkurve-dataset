@@ -1,0 +1,134 @@
+Metadata-Version: 2.4
+Name: lightkurve-dataset
+Version: 0.1.0
+Summary: Hybrid preprocessing pipeline for exoplanet classification
+Author: Hybrid Team
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: astropy
+Requires-Dist: lightkurve
+Requires-Dist: scikit-learn
+Requires-Dist: lightgbm
+Provides-Extra: cnn
+Requires-Dist: torch; extra == "cnn"
+Requires-Dist: torchvision; extra == "cnn"
+Provides-Extra: ui
+Requires-Dist: fastapi; extra == "ui"
+Requires-Dist: uvicorn; extra == "ui"
+Requires-Dist: streamlit; extra == "ui"
+
+# Hybrid Exoplanet Classification Pipeline
+
+This repository hosts the data preparation layer for a hybrid system that combines a feature-based gradient boosting model (LightGBM) with a morphology-based 1-D CNN. The focus is on preparing consistent inputs sourced from NASA's Kepler/K2/TESS missions via the Lightkurve toolkit.
+
+## Repository Layout
+
+- `src/lightkurve_dataset/` – reusable Python package containing modules for downloading, cleaning, phase-folding, and feature generation.
+- `scripts/prepare_datasets.py` – CLI orchestrator that produces both LightGBM feature tables and CNN tensors.
+- `data/raw/` – Light curve FITS files downloaded through Lightkurve.
+- `data/processed/` – Outputs ready for model training (`lightgbm/features.parquet` and `cnn/cnn_dataset.npz`).
+- `docs/` – Additional technical notes (to be expanded).
+
+## Quickstart
+
+1. Install dependencies (recommended: dedicated virtual environment):
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -U pip
+   pip install lightkurve pandas numpy astropy lightgbm torch torchvision scikit-learn streamlit fastapi[all]
+   ```
+
+2. Place the curated metadata catalog at `data/metadata/catalog.csv`. It must contain at least the columns `target_id`, `label`, `period`, `epoch`, `duration`, and optionally `mission`.
+
+3. Run the preprocessing pipeline:
+
+   ```bash
+   python scripts/prepare_datasets.py --download --max-targets 100
+   ```
+
+   The `--download` flag fetches PDCSAP light curves for the targets listed in the catalog. Omit it if the FITS files are already present in `data/raw/`.
+
+   **Tip for hackathons / quick demos:** coloca un lote pequeño de FITS (por ejemplo, 50–200 curvas ya descargadas) dentro de `data/raw/`, y ejecuta
+
+   ```bash
+   python scripts/prepare_datasets.py --max-targets 100 --allow-missing
+   ```
+
+   El flag `--allow-missing` descarta objetivos que no tengan archivo asociado y reduce el tiempo de preparación. Puedes ir ampliando el lote conforme dispongas de más datos.
+
+## Cómo funciona el pipeline (detalle)
+
+La lógica completa está centralizada en `scripts/prepare_datasets.py` y el paquete `lightkurve_dataset`. A continuación, un recorrido paso a paso de cada bloque:
+
+1. **Configuración (`lightkurve_dataset.config`)**
+   - Define dataclasses con todos los knobs del pipeline: descarga (`DataFetchConfig`), limpieza (`QualityMaskConfig`), faseado (`PhaseFoldConfig`), extracción de features físicos (`FeatureConfig`), generación de tensores para la CNN (`CNNConfig`) y rutas de trabajo (`PipelineConfig`).
+   - El script crea una instancia de `PipelineConfig` y permite modificar parámetros vía flags (`--max-targets`, `--download`, etc.).
+
+2. **Carga de catálogo (`lightkurve_dataset.data.catalog`)**
+   - `load_metadata_catalog` lee `data/metadata/catalog.csv`, normaliza nombres de columnas a snake_case y asegura que existan los campos clave (`target_id`, `label`, `period`, `epoch`, `duration`, `mission`).
+   - Si pasas `--max-targets`, se limita el número de objetivos por misión manteniendo estratificación interna.
+
+3. **Descarga opcional (`lightkurve_dataset.data.fetch`)**
+   - Si se usa `--download`, el script itera por misión (`Kepler`, `K2`, `TESS`) y llama a Lightkurve (`lk.search_lightcurve`).
+   - Cada misión usa su propia copia de `DataFetchConfig` para ajustar el filtro de búsqueda (autor, cadencia, etc.).
+   - Los FITS se guardan bajo `data/raw/mastDownload/<Mission>/...`. Si la red falla, puedes trabajar solo con archivos ya presentes.
+
+4. **Asociación catálogo ↔ FITS (`_attach_lightcurve_paths`)**
+   - Recorre `data/raw/` buscando archivos `*.fits` y asigna la ruta correcta a cada `target_id`.
+   - Si no encuentra un archivo y usas `--allow-missing`, la fila se elimina silenciosamente. Sin ese flag, el pipeline aborta para evitar datasets incompletos.
+
+5. **Preprocesamiento individual (`lightkurve_dataset.preprocessing`)
+   - `pipeline.load_lightcurve` intenta abrir el FITS con Lightkurve; si no reconoce el formato (por ejemplo, curvas sintéticas generadas localmente), cae a un lector manual con `astropy.io.fits` y construye un `LightCurve` a partir de las columnas `TIME`, `FLUX`, `FLUX_ERR`.
+   - `clean_lightcurve` aplica:
+     - Máscara de calidad (`remove_quality_flags`).
+     - Normalización a ppm.
+     - Sigma-clipping de outliers.
+     - Detrending con Savitzky–Golay (parámetros configurables).
+   - `phase.fold_phase` y `phase.create_global_local_views` generan:
+     - Vista global: curva faseada en [-0.5, 0.5] con 2001 bins.
+     - Vista local: ventana centrada en el tránsito con 201 bins (anchura configurable).
+   - El resultado incluye arrays `time`, `flux`, `flux_err`, `phase`, y las vistas global/local usadas por ambas ramas.
+
+6. **Extracción de features físicos (`lightkurve_dataset.features.physical`)**
+   - Calcula profundidad del tránsito, SNR, diferencia odd-even, detección secundaria, métrica de forma (V-shape), densidad estelar aparente y parámetros BLS (`BoxLeastSquares`).
+   - Si la ventana en tránsito es demasiado corta o ocurre un error, el registro se descarta (se loguea el warning y se continúa).
+
+7. **Construcción de datasets (`lightkurve_dataset.datasets`)**
+   - **LightGBM (`datasets.lightgbm`)**: compone un DataFrame con los features anteriores + metadata (`target_id`, `mission`, `label`) y lo guarda como `data/processed/lightgbm/features.parquet`.
+   - **CNN (`datasets.cnn`)**: apila los canales `global_flux`, `global_err`, `mask` (y equivalentes locales) en tensores `float32`, los serializa en `cnn_dataset.npz` y exporta `cnn_metadata.csv` + `cnn_config.json` para reproducibilidad.
+
+8. **Generación de datos sintéticos (`scripts/generate_mock_lightcurves.py`)**
+   - Utilidad adicional para hackathons: toma el catálogo y crea curvas de luz artificiales con ruido y tránsitos idealizados. Usa Lightkurve para escribir FITS compatibles y permite bootstrapping rápido sin depender de MAST.
+
+9. **Entrenamiento rápido sobre el subset**
+   - Con `data/processed/lightgbm/features.parquet` puedes entrenar LightGBM en segundos (`sklearn` + `lgb.train`).
+   - Con `data/processed/cnn/cnn_dataset.npz` entrenas una pequeña 1-D CNN (dual-branch global/local). Las probabilidades de ambos modelos se ensamblan posteriormente con un promedio ponderado o un meta-clasificador.
+
+10. **Salida final**
+    - Los artefactos clave quedan en:
+      - `data/processed/lightgbm/features.parquet` y `lightgbm_mock.txt` (modelo entrenado).
+      - `data/processed/cnn/cnn_dataset.npz`, `cnn_metadata.csv`, `cnn_config.json`.
+    - Estos sirven de insumo directo para las etapas de entrenamiento, calibración y la interfaz web (Streamlit + FastAPI) planteada en el diseño general.
+
+## Workflow sugerido en hackathon
+
+1. Ejecuta `scripts/generate_mock_lightcurves.py --per-label 40` para generar curvas sintéticas (opcional si ya tienes FITS reales).
+2. Corre el pipeline: `python scripts/prepare_datasets.py --max-targets 120 --allow-missing`.
+3. Entrena LightGBM rápido y guarda métricas (ver ejemplo en este README).
+4. Entrena la CNN sobre `cnn_dataset.npz` (unas pocas épocas con PyTorch o TensorFlow).
+5. Implementa el ensamble (`alpha * LightGBM + (1 - alpha) * CNN`), aplica reglas físicas (odd-even, duraciones, densidad) y genera visualizaciones/interpretabilidad (SHAP, saliency).
+6. Conecta el backend (FastAPI) y la interfaz (Streamlit) para consumir los modelos y mostrar resultados en la demo.
+
+4. Train downstream models with the produced assets:
+   - LightGBM branch consumes `data/processed/lightgbm/features.parquet`.
+   - CNN branch consumes `data/processed/cnn/cnn_dataset.npz` along with `cnn_metadata.csv` and `cnn_config.json`.
+
+## Next Steps
+
+- Integrate model training notebooks or scripts for both branches.
+- Add evaluation utilities (ROC-AUC, PR-AUC, calibration, transfer tests).
+- Expose the models through FastAPI + Streamlit per the project vision.

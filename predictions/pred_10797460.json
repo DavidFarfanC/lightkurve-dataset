@@ -1,0 +1,43 @@
+{
+  "target_id": "10797460",
+  "mission": "Kepler",
+  "probabilities": {
+    "CP": 0.9999313063248262,
+    "FP": 1.3440730116571083e-05,
+    "PC": 5.525294505725003e-05
+  },
+  "flags": {
+    "vshape": false,
+    "odd_even": false,
+    "secondary": false,
+    "duration": false,
+    "rho": false
+  },
+  "top_features": [
+    {
+      "feature": "bls_power",
+      "shap": 2.317211021626
+    },
+    {
+      "feature": "depth_ppm",
+      "shap": 0.5924839013953145
+    },
+    {
+      "feature": "rho_star_cgs",
+      "shap": 0.5231825017096934
+    },
+    {
+      "feature": "bls_sde",
+      "shap": 0.44042017014583323
+    },
+    {
+      "feature": "epoch_bjd",
+      "shap": 0.3557477470323301
+    }
+  ],
+  "source": "tmp_curve.csv",
+  "plots": {
+    "global": null,
+    "local": null
+  }
+}

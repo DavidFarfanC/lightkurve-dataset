@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=66", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lightkurve-dataset"
+version = "0.1.0"
+description = "Hybrid preprocessing pipeline for exoplanet classification"
+authors = [{name = "Hybrid Team"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "astropy",
+    "lightkurve",
+    "scikit-learn",
+    "lightgbm",
+]
+
+[project.optional-dependencies]
+cnn = ["torch", "torchvision"]
+ui = ["fastapi", "uvicorn", "streamlit"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
