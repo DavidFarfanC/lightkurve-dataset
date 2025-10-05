@@ -29,6 +29,7 @@ This repository hosts the data preparation layer for a hybrid system that combin
 - `models/` – Boosters finales + calibraciones (`lightgbm_final.*`).
 - `reports/` – Métricas, probabilidades y figuras del hold-out + PDF final.
 - `cli/`, `api/` – Interfaces de predicción (CLI para jurado, FastAPI para servicio).
+- `artifacts/` – Artefactos ligeros necesarios en despliegue (e.g., `lightgbm_oof.npz`).
 - `docs/` – Additional technical notes (to be expanded).
 
 ## Quickstart
@@ -91,6 +92,7 @@ El paquete `src/lightkurve_dataset` agrupa:
 4. **Evaluar hold-out** – `scripts/eval_on_holdout.py --vetting-config configs/vetting.yaml --out reports/holdout_metrics.json --probs-out reports/holdout_probs.npz` aplica vetting físico y guarda métricas/curvas.
 5. **Figuras + informe** – Ejecuta `scripts/figures.py` y `scripts/build_report.py` para generar `reports/figures/*.png` y `reports/final_report.pdf`.
 6. **CNN / Ensamble** – `scripts/train_cnn.py` (opcional) y `scripts/ensemble_blend.py` documentan el marco híbrido y ratifican `α=0`.
+7. **Artefactos para despliegue** – Copia `data/processed/lightgbm/lightgbm_oof.npz` a `artifacts/lightgbm_oof.npz` o genera el archivo directamente en `artifacts/` para evitar subir el directorio completo `data/` en entornos serverless.
 
 Todos los artefactos resultantes (modelos, calibraciones, métricas, figuras) se conservan en el repositorio para trazabilidad y para alimentar la API/CLI.
 
@@ -455,6 +457,8 @@ Errores devuelven un payload consistente `{"error": {"code": "BAD_INPUT", "messa
 1. **Requisitos**: Python ≥3.10 con dependencias del Quickstart (`lightkurve`, `pyarrow`, `pyyaml`, `fastapi`, `uvicorn`, etc.).
 2. **Variables opcionales**:
    - `MODEL_PATH`, `CAL_PATH`, `VETTING_CFG` si tus artefactos viven fuera de la ruta por defecto.
+   - `METRICS_PATH` (por defecto `reports/holdout_metrics.json`).
+   - `RELIABILITY_PATH` apuntando a `artifacts/lightgbm_oof.npz` (ver nota en la sección anterior).
    - `CP_THRESH`, `CP_HIGH` para ajustar la lógica de decisión (default 0.50 / 0.90).
    - `MPLCONFIGDIR` si deseas mover el caché de Matplotlib.
 3. **Arrancar servidor**:
@@ -502,7 +506,7 @@ La API puede ejecutarse como función serverless en Vercel.
 
 3. **Variables de entorno**
    - Define en el panel de Vercel (o con `vercel env`) las rutas si difieren de las por defecto: `MODEL_PATH`, `CAL_PATH`, `VETTING_CFG`, `METRICS_PATH`, `RELIABILITY_PATH`, `CP_THRESH`, `CP_HIGH`.
-   - Considera subir los artefactos del modelo (`models/lightgbm_final.*`, `configs/vetting.yaml`, `reports/holdout_metrics.json`, `data/processed/lightgbm/lightgbm_oof.npz`) al repo o a storage privado accesible mediante variable de entorno.
+   - Considera subir los artefactos del modelo (`models/lightgbm_final.*`, `configs/vetting.yaml`, `reports/holdout_metrics.json`, `artifacts/lightgbm_oof.npz`) al repo o a storage privado accesible mediante variable de entorno.
 4. **Despliegue**
    ```bash
    vercel login               # una vez
@@ -513,6 +517,8 @@ La API puede ejecutarse como función serverless en Vercel.
    - `vercel open /healthz`
    - `vercel open /api/models/info`
    - Ejecuta una inferencia con `curl` apuntando al dominio generado.
+
+`/.vercelignore` excluye directorios pesados (`.venv`, `data/`, `logs/`, etc.) para cumplir el límite de 100 MB del plan gratuito; asegúrate de mantener los artefactos mínimos en `models/`, `configs/`, `reports/` y `artifacts/`.
 
 Recuerda que Vercel es stateless: `media/` y archivos generados se guardan en almacenamiento efímero. Para compartir plots deberás copiar la respuesta (`plots` URLs) inmediatamente o subir los PNG a un bucket externo durante la llamada.
 
