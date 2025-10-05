@@ -1,7 +1,8 @@
 {
+  "version": 2,
   "functions": {
     "api/index.py": {
-      "runtime": "python3.10",
+      "runtime": "python3.11",
       "maxDuration": 60
     }
   },
