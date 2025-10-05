@@ -520,6 +520,24 @@ La API puede ejecutarse como función serverless en Vercel.
 
 `/.vercelignore` excluye directorios pesados (`.venv`, `data/`, `logs/`, etc.) para cumplir el límite de 100 MB del plan gratuito; asegúrate de mantener los artefactos mínimos en `models/`, `configs/`, `reports/` y `artifacts/`.
 
+### Despliegue desde la web de Vercel
+
+1. Inicia sesión en [vercel.com](https://vercel.com/) y pulsa **Add New → Project**.
+2. Autoriza el acceso a tu repositorio `lightkurve-dataset` (si no aparece, usa **Import Git Repository** e introduce la URL).
+3. En la pantalla de configuración inicial:
+   - **Framework Preset**: selecciona “Python”.
+   - **Root Directory**: deja la raíz del repo.
+   - **Build & Output Settings**: Vercel detecta automáticamente la función `api/index.py`; no necesita build command.
+4. En la sección **Environment Variables**, agrega las mismas claves usadas en CLI:
+   - `MODEL_PATH = models/lightgbm_final.txt`
+   - `CAL_PATH = models/lightgbm_cal.json`
+   - `VETTING_CFG = configs/vetting.yaml`
+   - `METRICS_PATH = reports/holdout_metrics.json`
+   - `RELIABILITY_PATH = artifacts/lightgbm_oof.npz`
+   - `CP_THRESH = 0.5`
+   - `CP_HIGH = 0.9`
+5. Haz clic en **Deploy**. Tras unos segundos se mostrará el dominio público. Verifica `https://<tu-dominio>/healthz` y `https://<tu-dominio>/api/models/info` para confirmar que la API responde.
+
 Recuerda que Vercel es stateless: `media/` y archivos generados se guardan en almacenamiento efímero. Para compartir plots deberás copiar la respuesta (`plots` URLs) inmediatamente o subir los PNG a un bucket externo durante la llamada.
 
 ## Próximos pasos sugeridos
